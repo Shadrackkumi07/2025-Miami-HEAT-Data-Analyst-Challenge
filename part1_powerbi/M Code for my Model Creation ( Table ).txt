@@ -1,0 +1,139 @@
+1. EVENTS DIMNSION (EventDim)
+let
+    Source        = SampleData,
+    #"Keep cols"  = Table.SelectColumns(Source, {"event_date","opponent"}),
+    #"Unique"     = Table.Distinct(#"Keep cols"),
+
+
+    #"Ensure Date" = Table.TransformColumns(#"Unique",
+                     {{"event_date", each Date.From(_), type date}}),
+
+    
+    #"Add Season" = Table.AddColumn(#"Ensure Date",
+                    "season", each Date.Year([event_date]), Int64.Type),
+    #"Add Weekday"= Table.AddColumn(#"Add Season",
+                    "weekday", each Date.DayOfWeekName([event_date]), type text),
+    #"Add Event ID" = Table.AddIndexColumn(#"Add Weekday",
+                    "event_id", 1, 1, Int64.Type),
+    #"Reorder"    = Table.ReorderColumns(#"Add Event ID",
+                    {"event_id","event_date","opponent","season","weekday"})
+in
+    #"Reorder"
+
+
+
+
+2. SECTION DIMENSION (SectionDim)\
+let
+    Source         = SampleData,
+    #"Keep cols"   = Table.SelectColumns(Source,{"section_catergory","section_group","section_level","section_name","row_name"}),
+    #"Unique"      = Table.Distinct(#"Keep cols"),
+    #"Add ID"      = Table.AddIndexColumn(#"Unique","section_id",1,1,Int64.Type),
+    #"Reorder"     = Table.ReorderColumns(#"Add ID",{"section_id","section_catergory","section_group","section_level","section_name","row_name"})
+in
+    #"Reorder"\
+
+
+3. PLANS DIMENSION (PlanDim)
+let
+    Source         = SampleData,
+    #"Keep cols"   = Table.SelectColumns(Source,{"plan_name","price_code","sales_class_group"}),
+    #"Replace null"= Table.ReplaceValue(#"Keep cols", each [plan_name], each if [plan_name]=null or [plan_name]="<Unknown>" then "" else [plan_name], Replacer.ReplaceValue,{"plan_name"}),
+    #"Unique"      = Table.Distinct(#"Replace null"),
+    #"Add ID"      = Table.AddIndexColumn(#"Unique","plan_id",1,1,Int64.Type),
+    #"Reorder"     = Table.ReorderColumns(#"Add ID",{"plan_id","plan_name","price_code","sales_class_group"}),
+    #"Filtered Rows" = Table.SelectRows(Reorder, each true)
+in
+    #"Filtered Rows"
+
+
+4. DATES DIMENSION ( DateDim )
+let
+ 
+    EventDates = List.Transform( SampleData[event_date],       each Date.From(_) ),
+    TxnDates   = List.Transform( SampleData[transaction_date], each Date.From(_) ),
+
+    AllDates   = List.Combine( { EventDates, TxnDates } ),
+    MinDate    = List.Min( AllDates ),
+    MaxDate    = List.Max( AllDates ),
+
+   
+    Dates      = List.Dates( MinDate,
+                              Duration.Days( MaxDate - MinDate ) + 1,
+                              #duration(1,0,0,0) ),
+
+    
+    #"To Table"    = Table.FromList( Dates, Splitter.SplitByNothing(), {"date"} ),
+
+    
+    #"Add key"     = Table.AddColumn(
+                        #"To Table",
+                        "date_key",
+                        each Number.FromText( Date.ToText([date], "yyyyMMdd") ),
+                        Int64.Type ),
+
+    #"Add year"    = Table.AddColumn( #"Add key", "year",
+                        each Date.Year([date]), Int64.Type ),
+    #"Add quarter" = Table.AddColumn( #"Add year", "quarter",
+                        each Date.QuarterOfYear([date]), Int64.Type ),
+    #"Add month"   = Table.AddColumn( #"Add quarter", "month_num",
+                        each Date.Month([date]), Int64.Type ),
+    #"Add monthN"  = Table.AddColumn( #"Add month", "month_name",
+                        each Date.MonthName([date]), type text ),
+    #"Add wkday"   = Table.AddColumn( #"Add monthN", "weekday",
+                        each Date.DayOfWeekName([date]), type text ),
+    #"Changed Type" = Table.TransformColumnTypes(#"Add wkday",{{"date", type date}})
+in
+    #"Changed Type"
+
+
+
+
+5. Facts Ticket Sales Dimensions Table
+let
+    Source           = SampleData,
+
+    
+    MergeEvent       = Table.NestedJoin(Source,{"event_date","opponent"},
+                                        EventDim,{"event_date","opponent"},
+                                        "Event",JoinKind.LeftOuter),
+    ExpandEvent      = Table.ExpandTableColumn(MergeEvent,"Event",{"event_id"}, {"event_id"}),
+
+    
+    MergeSection     = Table.NestedJoin(ExpandEvent,
+                                        {"section_catergory","section_group","section_level","section_name","row_name"},
+                                        SectionDim,
+                                        {"section_catergory","section_group","section_level","section_name","row_name"},
+                                        "Sec",JoinKind.LeftOuter),
+    ExpandSection    = Table.ExpandTableColumn(MergeSection,"Sec",{"section_id"}, {"section_id"}),
+
+    
+    MergePlan        = Table.NestedJoin(ExpandSection,{"plan_name","price_code","sales_class_group"},
+                                        PlanDim,{"plan_name","price_code","sales_class_group"},
+                                        "Plan",JoinKind.LeftOuter),
+    ExpandPlan       = Table.ExpandTableColumn(MergePlan,"Plan",{"plan_id"},{"plan_id"}),
+    
+    AddDateKey =
+    Table.AddColumn(ExpandPlan,
+        "date_key",
+        each Number.FromText(Date.ToText(Date.From([transaction_date]), "yyyyMMdd")),
+        Int64.Type),
+
+    
+    FixRevenue       = Table.TransformColumnTypes(AddDateKey,{{"sold_revenue", Currency.Type}}),
+    RevPerTicket     = Table.AddColumn(FixRevenue,"rev_per_ticket",
+                                       each if [tickets_sold]=0 then null else [sold_revenue]/[tickets_sold], Currency.Type),
+
+    
+    AreaToText       = Table.TransformColumnTypes(RevPerTicket,{{"area_code", type text}}),
+
+#"Reorder" = Table.ReorderColumns(
+                AreaToText,
+                {
+                    "event_id","section_id","plan_id","date_key",
+                    "tickets_sold","sold_revenue","rev_per_ticket",
+                    "group_flag","area_code",
+                    "transaction_date","event_date","opponent"
+                })
+in
+    #"Reorder"

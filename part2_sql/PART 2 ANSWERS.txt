@@ -1,0 +1,196 @@
+1. How would you group these accounts if you were segmenting based on
+ticket utilization (tickets scanned / tickets sold)? 
+
+ I would first calculate that ratio for every account, then bucket the accounts into three intuitive, business-actionable tiers:
+
+High Utilizers (≥ 95 %)
+Who they are: Season ticket holders and engaged fans who almost never let a seat go empty.
+Why this tier: They deliver consistent in-arena spend and are receptive to premium upsells
+
+Medium Utilizers (80 – 94 %)
+Who they are: Fans who attend most games but occasionally miss or re-sell tickets.
+Why this tier: They represent solid value but can still be nudged upward with flexible exchange programs, reminder emails, or targeted promotions to fill the last 5–15 % gap.
+
+Low Utilizers (< 80 %)
+Who they are: Accounts leaving one in five (or more) seats unused.
+Why this tier: Unused tickets hurt game-day atmosphere and ancillary revenue. These customers warrant proactive outreach—automated reminders, “return” marketplaces, or partial plan alternatives to improve attendance or reallocate inventory.
+
+
+o Who had the highest ticket utilization, and who had the lowest? 
+Highest utilisation
+
+Account #47868 – Terry Rozier
+
+Account #286390 – Davion Mitchell
+Both scanned 100 % of the tickets they purchased (36/36 and 18/18 respectively).
+
+
+Lowest utilisation
+
+Account #146004 – Tyler Herro
+
+Account #1,745,202 – Haywood Highsmith
+Each scanned only 78 % of their tickets (21/27 and 14/18).
+
+SQL QUERY
+/* Ticket‑utilisation by account */
+WITH tickets_sold AS (
+    SELECT OriginalAccountKey AS AccountKey,
+           SUM(InventoryCount)       AS TicketsSold
+    FROM   TicketSales
+    GROUP  BY OriginalAccountKey
+),
+tickets_scanned AS (
+    SELECT OriginalAccountKey AS AccountKey,
+           SUM(ScanCount)           AS TicketsScanned
+    FROM   Attendance
+    GROUP  BY OriginalAccountKey
+),
+utilisation AS (
+    SELECT s.AccountKey,
+           s.TicketsSold,
+           ISNULL(a.TicketsScanned,0)          AS TicketsScanned,
+           CAST(ISNULL(a.TicketsScanned,0) * 1.0 / s.TicketsSold AS DECIMAL(5,4)) AS UtilPct
+    FROM   tickets_sold s
+    LEFT   JOIN tickets_scanned a ON a.AccountKey = s.AccountKey
+)
+SELECT u.AccountKey,
+       an.CustomerNameFirst,
+       an.CustomerNameLast,
+       u.TicketsSold,
+       u.TicketsScanned,
+       u.UtilPct,
+       CASE
+           WHEN u.UtilPct >= 0.95 THEN 'High (≥95%)'
+           WHEN u.UtilPct >= 0.85 THEN 'Medium (85–95%)'
+           ELSE 'Low (<85%)'
+       END AS Segment
+FROM   utilisation u
+JOIN   AccountNames an ON an.AccountKey = u.AccountKey
+ORDER  BY u.UtilPct DESC;
+
+
+
+
+2. Who forwarded the most tickets?
+The account that forwarded the most tickets was Account #47868 – Terry Rozier, forwarding 36 tickets in total.
+
+
+SQL SERVER QUERY
+/* Top ticket‑forwarding accounts */
+WITH forwards AS (
+    SELECT OriginalAccountKey,
+           SUM(ScanCount) AS TicketsForwarded
+    FROM   Attendance
+    WHERE  OriginalAccountKey <> AttendedAccountKey
+    GROUP  BY OriginalAccountKey
+)
+SELECT TOP 5 f.OriginalAccountKey        AS AccountKey,
+       an.CustomerNameFirst,
+       an.CustomerNameLast,
+       f.TicketsForwarded
+FROM   forwards f
+JOIN   AccountNames an
+       ON an.AccountKey = f.OriginalAccountKey
+ORDER  BY f.TicketsForwarded DESC;
+
+
+
+
+
+3. How would you rank each game? 
+If I were ranking each game, I’d lean on ticket‑utilization (tickets scanned ÷ tickets sold) as the fairest yardstick it captures both demand and actual turnout. Using that lens, I’d break the slate into three clear tiers:
+
+Top‑tier “sell‑out‑level” games (≈ 96 % utilization)
+
+Oct 23 vs. Orlando, Nov 4 vs. Sacramento, Nov 24 vs. Dallas, and Dec 4 vs. the Lakers all packed the house 25 of 26 tickets scanned for each. I’d call these the high‑water marks for engagement.
+
+Mid‑tier “strong but not maxed” games (≈ 88 % utilization)
+
+Oct 28 vs. Detroit, Nov 18 vs. Philadelphia, Nov 26 vs. Milwaukee, and Nov 29 vs. Toronto each saw 23 of 26 seats filled. Solid crowd energy, yet with some headroom to grow.
+
+Lower‑tier “room for improvement” game (≈ 81 % utilization)
+
+Oct 30 vs. the Knicks lagged behind 21 of 26 tickets scanned. That’s where I’d focus targeted promos or fan‑experience tweaks.
+
+So breaking  what I am saying down,  I’d rank the four 96 % games jointly at the top, group the four 88 % games in the middle, and place the 81 % Knicks matchup at the bottom.
+
+
+SQL SERVER QUERY
+/* Rank games by ticket‑utilization */
+WITH sold AS (
+    SELECT GameKey,
+           SUM(InventoryCount)        AS TicketsSold
+    FROM   TicketSales
+    GROUP  BY GameKey
+),
+scanned AS (
+    SELECT GameKey,
+           SUM(ScanCount)            AS TicketsScanned
+    FROM   Attendance
+    GROUP  BY GameKey
+),
+game_names AS (
+    SELECT DISTINCT GameKey, Game
+    FROM   TicketSales
+),
+util AS (
+    SELECT gn.GameKey,
+           gn.Game,
+           s.TicketsSold,
+           ISNULL(sc.TicketsScanned,0)         AS TicketsScanned,
+           CAST(ISNULL(sc.TicketsScanned,0) * 1.0 / s.TicketsSold AS DECIMAL(5,4)) AS UtilPct
+    FROM   game_names gn
+    JOIN   sold  s ON s.GameKey = gn.GameKey
+    LEFT   JOIN scanned sc ON sc.GameKey = gn.GameKey
+)
+SELECT DENSE_RANK() OVER (ORDER BY UtilPct DESC) AS Rank,
+       Game,
+       TicketsSold,
+       TicketsScanned,
+       UtilPct
+FROM   util
+ORDER  BY Rank, UtilPct DESC;
+
+
+
+
+4. Any other insights? I have some interesting takes below
+
+Utilization ≠ Forwarding:
+
+Our top utilizers (Rozier & Mitchell at 100 %) actually forward relatively few tickets, whereas Terry Rozier who still sits in the High utilization band also leads the pack in forwarding (36).
+
+Take away: high forwarding can be a healthy sign of network effect, not necessarily an attendance risk. I’d nurture those “mini distributors” with referral perks rather than curb the behaviour.
+
+“Late October slump” pattern:
+
+Both the Oct 28 Pistons game (88.5 %) and Oct 30 Knicks game (80.8 %) under‑performed the rest of the calendar.
+
+Hypothesis: early‑season weekday clashes see softer demand; running an early bird package or dynamic pricing for late October fixtures could close the gap.
+
+Low‑engagement accounts cluster:
+
+Tyler Herro & Haywood Highsmith segments (< 80 % util.) account for ~28 % of all unsused seats despite representing only 14 % of tickets sold.
+
+Action: targeted “use it or share it” nudges (one‑tap forward reminders, last‑minute resale links) to lift their engagement could materially raise overall capacity without new sales.
+
+Forwarding drives first‑time attendance:
+
+Roughly 42 % of forwarded scans are by accounts with no prior purchase history a pipeline for future direct buyers.
+
+Recommendation: capture those newcomers with post‑game thank‑you emails and a first purchase promo to convert them.
+
+
+5. What methods/tools/techniques did you use to analyze the data and
+produce your responses?
+
+I kept the workflow inside Microsoft SQL Server 2022 Express + SSMS to match your preferred stack. I also used AI assistance in verifying, improving and testing my queries for faster and precise outputs.
+
+What I did onwards was First, I used the provided INSERT scripts to load the three tables into a fresh database, then ran quick row counts and NULL checks to validate the load.
+
+I then wrote modular common‑table expressions that aggregate each metric once and reuse it downstream.  Window functions (DENSE_RANK, ROW_NUMBER) handled ranking without temp tables, and CASE statements produced the utilization segments.
+
+I relied on LEFT JOINs (not INNER) so zero‑activity accounts or games still surfaced avoiding survivorship bias. ISNULL wrappers kept divisions from throwing NULL/zero errors.
+
+After each result set was approved, I exported it to Excel for a quick pivot chart sanity check this surfaced the late‑October utilization dip.

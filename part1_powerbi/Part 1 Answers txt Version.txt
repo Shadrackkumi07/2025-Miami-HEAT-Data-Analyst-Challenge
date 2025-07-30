@@ -1,0 +1,48 @@
+MIAMI HEAT DATA ANALYSIS CHALLENGE
+
+1. Which game do you think performed the best, and why?
+The April 1st, 2023 game against the Dallas Mavericks was the best-performing,
+generating a season-high $2.69M in revenue from 17,316 tickets sold—the highest
+volume across all games. It also had the highest average ticket price ($155.51),
+indicating strong demand with optimized pricing. While premium seats accounted
+for just 1.7% of total revenue, the consistent premium mix across games suggests
+this game’s success came from high volume and effective pricing strategy.
+Additionally, over $1.96M came from Season Plan revenue, showcasing strong longterm engagement and a loyal fanbase—making it the most commercially successful
+game of the season.
+
+
+
+
+2. Which game do you think performed the worst, and why?
+The December 8th, 2022 game against the Los Angeles Clippers was the worstperforming, bringing in the lowest revenue at $2.37M, despite a comparable ticket
+count (16,830 sold) to other games. It had the lowest average ticket price
+($141.09) and the lowest premium revenue share (1.4%), suggesting weaker
+demand for high-value seating. Only 33 premium tickets were sold compared to
+over 16,700 non-premium seats. While Season Plan revenue remained strong
+($1.96M), the game's underperformance points to low per-ticket value and minimal
+premium engagement, likely tied to a less compelling matchup or poor timing late in
+the season.
+
+
+
+
+
+3. Any other insights?
+Across all games analyzed, ticket sales were consistently strong, with each event
+drawing over 16,000 attendees. However, revenue performance varied more due to
+pricing and premium engagement than volume alone. While the Dallas Mavericks
+game had the highest revenue, this was driven by a combination of optimized average
+pricing ($155.51) and the highest ticket count, not premium seating. In fact, premium
+revenue made up less than 2% of total revenue across all games—suggesting that
+premium inventory may be underutilized or undervalued in pricing and marketing
+strategies.
+Additionally, Season Plan sales were the dominant driver of revenue, accounting for
+nearly 77% of total income across the four games, highlighting a strong and loyal
+season-ticket base. This presents an opportunity to upsell premium upgrades to existing
+plan holders.
+Interestingly, weekday games like the 76ers and Bulls still performed well, implying
+that game day (e.g., Wednesday vs Saturday) may not be as strong a predictor of success
+as opponent quality and pricing strategy.
+Lastly, despite high attendance, there is room to improve yield per ticket, especially in
+non-premium seating, by exploring dynamic pricing models, more aggressive upselling
+of premium seats, and targeted campaigns tied to high-demand matchups.
